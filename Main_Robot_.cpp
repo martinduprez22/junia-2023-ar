@@ -1,146 +1,229 @@
 #include <iostream>
+#include <vector>
 #include <string>
 
 class Objet {
 public:
-    int num;
     int positionX;
     int positionY;
-    std::string equipe;
-    
 
-    Objet() : num(-1), positionX(0), positionY(0),equipe("") {} // -1 =libre -2 obstacle 1 robot
-    Objet(int num, int posX, int posY,std::string eq)
-        : num(num), positionX(posX), positionY(posY),equipe(eq) {}
+    Objet() : positionX(0), positionY(0) {}
 
-    void deplacer(int newX, int newY) {
-        positionX = newX;
-        positionY = newY;
+    Objet(int posX, int posY) : positionX(posX), positionY(posY) {}
+
+    virtual void deplacer(int newX, int newY) = 0;
+    virtual void afficher() = 0;
+};
+
+class Tableau;
+
+class Robot : public Objet {
+public:
+    int batterie;
+
+    Robot(int posX, int posY) : Objet(posX, posY), batterie(100) {}
+
+    void deplacer(int newX, int newY) override {
+        int distanceX = std::abs(newX - positionX);
+        int distanceY = std::abs(newY - positionY);
+
+        if (distanceX == 1 && distanceY == 0 || distanceX == 0 && distanceY == 1) {
+            if (batterie > 0) {
+                positionX = newX;
+                positionY = newY;
+                batterie--;
+            } else {
+                std::cout << "Batterie épuisée, le robot ne peut pas se déplacer\n";
+            }
+        } else {
+            std::cout << "Déplacement impossible\n";
+        }
     }
 
-    void afficher() {
-    std::cout << "Robot \t" << equipe << "\t";
-}
+    virtual void afficher() {
+        std::cout << "R \t";
+    }
+};
 
+class Arbre : public Objet {
+public:
+    std::string statut;
+
+    Arbre(int posX, int posY, std::string statut) : Objet(posX, posY), statut(statut) {}
+
+    void deplacer(int newX, int newY) override {
+        // Les arbres ne peuvent pas être déplacés
+    }
+
+    void afficher() override {
+        if (statut == "pouce")
+            std::cout << "a \t";
+        else if (statut == "grand")
+            std::cout << "A \t";
+    }
+};
+
+class RobotPlanteur : public Robot {
+public:
+    RobotPlanteur(int posX, int posY) : Robot(posX, posY) {}
+
+    void planterArbrePouce(Tableau &tableau);
+
+    void afficher() override {
+        std::cout << "RP \t";
+    }
+};
+
+class RobotArroseur : public Robot {
+public:
+    RobotArroseur(int posX, int posY) : Robot(posX, posY) {}
+
+    void arroserArbre(Arbre &arbre) {
+        arbre.statut = "grand";
+        std::cout << "Le robot arrose l'arbre\n\n";
+    }
+
+    void afficher() override {
+        std::cout << "RA \t";
+    }
 };
 
 class Tableau {
+private:
+    static const int numRows = 5;
+    static const int numCols = 5;
+    std::vector<std::vector<Objet*>> tableau;
+
+    bool isValidPosition(int posX, int posY) const {
+        return posX >= 0 && posX < numRows && posY >= 0 && posY < numCols;
+    }
+
 public:
-    int ligne;
-    int colonne;
-    Objet *tableau; // Utilisez le type Robot pour le tableau
+    Tableau() {
+        tableau.resize(numRows, std::vector<Objet*>(numCols, nullptr));
+    }
 
-    Tableau(int lignes, int colonnes) : ligne(lignes), colonne(colonnes) {
-        tableau = new Objet[lignes * colonnes]; // Initialisez le tableau avec des objets Robot
-        for (int i = 0; i < ligne; i++) {
-            for (int j = 0; j < colonne; j++) {
-                tableau[i * colonne + j] = Objet(); //initialise à libre
+    void afficherTableau() {
+        for (int i = 0; i < numRows; ++i) {
+            for (int j = 0; j < numCols; ++j) {
+                if (tableau[i][j] != nullptr) {
+                    tableau[i][j]->afficher();
+                } else {
+                    std::cout << "- \t"; // Case vide
+                }
             }
+            std::cout << std::endl;
         }
     }
 
-     Objet getObjet(int i, int j) {
-        return tableau[i * colonne + j];
+    int getNumCols() const {
+        return numCols;
     }
 
-    void afficher() {
-    for (int i = 0; i < ligne; i++) {
-        for (int j = 0; j < colonne; j++) {
-             if(tableau[i * colonne + j].num==-2){
-             std::cout << "arbre  \t"; 
-            }
-            else if(tableau[i * colonne + j].num==-1){
-             std::cout << "libre  \t"; 
-            }
-            else {
-            tableau[i * colonne + j].afficher();
-            }
-            std::cout << "§"; // Utilisez le caractère § comme séparateur
+    void placerObjet(Objet* objet, int posX, int posY) {
+        if (isValidPosition(posX, posY)) {
+            tableau[posX][posY] = objet;
+            objet->positionX = posX;
+            objet->positionY = posY;
         }
-        std::cout << std::endl;
     }
-}
-    void changerCellule(int num, int i, int j,std::string eq) {
 
-            if(tableau[i * colonne + j].num == -2){
+    void deplacerObjet(Objet* objet, int newX, int newY) {
+        if (objet != nullptr && isValidPosition(newX, newY)) {
+            int distanceX = std::abs(newX - objet->positionX);
+            int distanceY = std::abs(newY - objet->positionY);
 
-                std::cout << "\nimpossible de se déplacer \n"; 
-    }
-            else {
-            tableau[i * colonne + j] = Objet(num, i, j, eq); // Changez la cellule en créant un nouveau Robot
+            if (distanceX == 1 && distanceY == 0 || distanceX == 0 && distanceY == 1) {
+                Robot* robot = dynamic_cast<Robot*>(objet);
+                if (robot) {
+                    if (robot->batterie > 0) {
+                        tableau[objet->positionX][objet->positionY] = nullptr;
+                        tableau[newX][newY] = objet;
+                        objet->positionX = newX;
+                        objet->positionY = newY;
+                        robot->batterie--;
+                        std::cout << "Batterie : " << robot->batterie << std::endl;
+                    } else {
+                        std::cout << "Batterie épuisée, le robot ne peut pas se déplacer\n";
+                    }
+                } else {
+                    tableau[objet->positionX][objet->positionY] = nullptr;
+                    tableau[newX][newY] = objet;
+                    objet->positionX = newX;
+                    objet->positionY = newY;
+                }
+            } else {
+                std::cout << "Déplacement impossible\n";
             }
         }
-
-   void deplacerRobot(Objet o, std::string d) {
-    int newX = o.positionX;
-    int newY = o.positionY;
-
-    // Vérifier si l'objet est un robot
-    if (o.num != 1) {
-        std::cout << "Impossible de déplacer l'objet, ce n'est pas un robot." << std::endl;
-        return;
-    }
-
-    if (d == "nord") {
-        newX--;
-    } else if (d == "sud") {
-        newX++;
-    } else if (d == "est") {
-        newY++;
-    } else if (d == "ouest") {
-        newY--;
-    } else {
-        std::cout << "Direction invalide. Utilisez 'nord', 'sud', 'est' ou 'ouest'." << std::endl;
-        return;
-    }
-
-    if (newX >= 0 && newX < ligne && newY >= 0 && newY < colonne) {
-        if (tableau[newX * colonne + newY].num == -2) {
-            std::cout << "Impossible de se déplacer sur un arbre." << std::endl;
-        } else if (tableau[newX * colonne + newY].num == -1) {
-            tableau[o.positionX * colonne + o.positionY] = Objet(-1, o.positionX, o.positionY, ""); // Libère la cellule actuelle
-            tableau[newX * colonne + newY] = o; // Déplace le robot
-            o.deplacer(newX, newY);
-        } else if (tableau[newX * colonne + newY].num == 1) {
-            std::cout << "La case de destination est occupée par un autre robot." << std::endl;
-        }
-    } else {
-        std::cout << "Déplacement impossible. La nouvelle position est en dehors des limites du tableau." << std::endl;
-    }
-}
-
-
-    ~Tableau() {
-        delete[] tableau;
     }
 };
 
+void RobotPlanteur::planterArbrePouce(Tableau &tableau) {
+    int newX = positionX+1;
+    int newY = positionY ;
+
+    if (newY >= tableau.getNumCols()) {
+        std::cout << "Impossible de planter en bas, il n'y a plus de place.\n";
+        return;
+    }
+
+    Arbre *arbrePouce = new Arbre(newX, newY, "pouce");
+
+    tableau.placerObjet(arbrePouce, newX, newY);
+    std::cout << "Robot Planteur plante un arbre 'pouce' en bas.\n";
+}
+
 int main() {
-    Tableau environnement(3, 4);
+    Tableau tableau;
 
-    environnement.changerCellule(1,1, 2,"A" );//on place 3 robot
-    environnement.changerCellule(1,2, 2,"B" );
-    environnement.changerCellule(1,0, 2,"A");
+    Robot robotB(1, 2);
+    Arbre arbreC(3, 4, "grand");
+    Arbre arbreF(1, 1, "pouce");
+    RobotPlanteur robotP(0, 0);
+    RobotArroseur robotR(2, 1);
 
-    // Affiche le tableau initial
-    environnement.afficher();
-    environnement.changerCellule(-1,0, 2,"");//libre
-    environnement.changerCellule(-2,0, 0,"");//arbre
-     environnement.changerCellule(-1,0, 0,"");//libre
+    tableau.placerObjet(&arbreF, 1, 1);
+    tableau.placerObjet(&robotP, 0, 0);
+    tableau.placerObjet(&robotR, 1, 2);
+    tableau.placerObjet(&arbreC, 3, 4);
+
+    tableau.afficherTableau();
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotR, 1, 3);
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotR, 2, 3);
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotR, 1, 3);
+    tableau.afficherTableau();
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotR, 1, 2);
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    robotR.arroserArbre(arbreF);
+
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotP, 1, 0);
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotP, 2, 0);
+    tableau.afficherTableau();
+
+    std::cout << "\n________________________________________________________________________________________\n\n";
+    tableau.deplacerObjet(&robotP, 3, 0);
+    tableau.afficherTableau();
+     std::cout << "\n________________________________________________________________________________________\n\n";
+     robotP.planterArbrePouce(tableau);
+     
     
-   
-    std::cout << "\n______________________________________________________________________\n \n";
-   
-    environnement.afficher();
-    environnement.deplacerRobot(environnement.getObjet(1,2),"sud");//on déplace le robot sur un robot
-    environnement.deplacerRobot(environnement.getObjet(1,2),"est");//on déplace le robot
-
-     std::cout << "\n______________________________________________________________________\nDeplacemnt Robot A à gauche \n";
-   
-    environnement.afficher();
-   environnement.deplacerRobot(environnement.getObjet(1,2),"est");//on déplace du vide(impossible) 
-   std::cout << environnement.getObjet(1, 3).num << std::endl;
-
-
+    tableau.afficherTableau();
     return 0;
 }
